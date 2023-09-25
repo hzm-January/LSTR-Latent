@@ -21,14 +21,14 @@ def kp_detection(db, k_ind):
     images   = np.zeros((batch_size, 3, input_size[0], input_size[1]), dtype=np.float32) # b, 3, H, W
     masks    = np.zeros((batch_size, 1, input_size[0], input_size[1]), dtype=np.float32)  # b, 1, H, W
     gt_lanes = []
-
+    k_ind_s = []
     db_size = db.db_inds.size # 3268 | 2782
 
     for b_ind in range(batch_size):
 
         if k_ind == 0:
             db.shuffle_inds()
-
+        k_ind_s.append(k_ind)
         db_ind = db.db_inds[k_ind]
         k_ind  = (k_ind + 1) % db_size
 
@@ -71,10 +71,12 @@ def kp_detection(db, k_ind):
 
     images   = torch.from_numpy(images)
     masks    = torch.from_numpy(masks)
+    k_ind_s  = torch.tensor(k_ind_s)
 
     return {
                "xs": [images, masks],
-               "ys": [images, *gt_lanes]
+               "ys": [images, *gt_lanes],
+               "ids": [k_ind_s]
            }, k_ind
 
 

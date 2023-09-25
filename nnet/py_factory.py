@@ -16,9 +16,9 @@ class Network(nn.Module):
         self.loss  = loss
 
     def forward(self, iteration, save, viz_split,
-                xs, ys, **kwargs):
+                xs, ys, ids, **kwargs):
 
-        preds, weights = self.model(*xs, **kwargs)
+        preds, weights = self.model(ids, xs, **kwargs)  # models/py_utils/kp.py kp
 
         loss  = self.loss(iteration,
                           save,
@@ -35,8 +35,8 @@ class DummyModule(nn.Module):
         super(DummyModule, self).__init__()
         self.module = model
 
-    def forward(self, *xs, **kwargs):
-        return self.module(*xs, **kwargs)
+    def forward(self, ids, xs, **kwargs):
+        return self.module(ids, xs, **kwargs)
 
 class NetworkFactory(object):
     def __init__(self, flag=False):
@@ -64,7 +64,8 @@ class NetworkFactory(object):
         # Count MACs when input is 360 x 640 x 3
         input_test = torch.randn(1, 3, 360, 640).cuda()
         input_mask = torch.randn(1, 3, 360, 640).cuda()
-        macs, params, = profile(self.model, inputs=(input_test, input_mask), verbose=False)
+        ids = torch.tensor([[1]]).cuda()
+        macs, params, = profile(self.model, inputs=(ids, [input_test, input_mask]), verbose=False)
         macs, _ = clever_format([macs, params], "%.3f")
         print('MACs: {}'.format(macs))
 
@@ -76,7 +77,7 @@ class NetworkFactory(object):
         elif system_configs.opt_algo == "sgd":
             self.optimizer = torch.optim.SGD(
                 filter(lambda p: p.requires_grad, self.model.parameters()),
-                lr=system_configs.learning_rate, 
+                lr=system_configs.learning_rate,
                 momentum=0.9, weight_decay=0.0001
             )
         elif system_configs.opt_algo == 'adamW':
@@ -103,16 +104,19 @@ class NetworkFactory(object):
               viz_split,
               xs,
               ys,
+              ids,
               **kwargs):
         xs = [x.cuda(non_blocking=True) for x in xs]
         ys = [y.cuda(non_blocking=True) for y in ys]
+        ids = [ids_.cuda(non_blocking=True) for ids_ in ids]
 
         self.optimizer.zero_grad()
-        loss_kp = self.network(iteration,
+        loss_kp = self.network(iteration,   # nnet/py_factory.py Network forward
                                save,
                                viz_split,
                                xs,
-                               ys)
+                               ys,
+                               ids)
 
         loss      = loss_kp[0]
         loss_dict = loss_kp[1:]
@@ -129,6 +133,7 @@ class NetworkFactory(object):
                  viz_split,
                  xs,
                  ys,
+                 ids,
                  **kwargs):
 
         with torch.no_grad():
@@ -138,17 +143,18 @@ class NetworkFactory(object):
                                    save,
                                    viz_split,
                                    xs,
-                                   ys)
+                                   ys,
+                                   ids)
             loss      = loss_kp[0]
             loss_dict = loss_kp[1:]
             loss      = loss.mean()
 
             return loss, loss_dict
 
-    def test(self, xs, **kwargs):
+    def test(self, ids, xs, **kwargs):
         with torch.no_grad():
             # xs = [x.cuda(non_blocking=True) for x in xs]
-            return self.model(*xs, **kwargs)
+            return self.model(ids, xs, **kwargs)
 
     def set_lr(self, lr):
         print("setting learning rate to: {}".format(lr))

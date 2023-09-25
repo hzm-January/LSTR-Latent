@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 import json
 import torch
 import numpy as np
@@ -59,6 +59,7 @@ def pin_memory(data_queue, pinned_data_queue, sema):
 
         data["xs"] = [x.pin_memory() for x in data["xs"]]
         data["ys"] = [y.pin_memory() for y in data["ys"]]
+        data["ids"] = [ids_.pin_memory() for ids_ in data["ids"]]
 
         pinned_data_queue.put(data)
 
@@ -155,7 +156,7 @@ def train(training_dbs, validation_db, start_iter=0, freeze=False):
             viz_split = 'train'
             save = True if (display and iteration % display == 0) else False
             (set_loss, loss_dict) \
-                = nnet.train(iteration, save, viz_split, **training)
+                = nnet.train(iteration, save, viz_split, **training)  # training 包含 xs, ys, ids 调用 py_factory.py train
             (loss_dict_reduced, loss_dict_reduced_unscaled, loss_dict_reduced_scaled, loss_value) = loss_dict
             metric_logger.update(loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled)
             metric_logger.update(class_error=loss_dict_reduced['class_error'])

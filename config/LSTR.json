@@ -23,8 +23,8 @@
         "stepsize": 450000,
         "snapshot": 5000,
 
-        "cache_dir": "/home/houzm/houzm/03_model/lstr/0923/cache",
-        "result_dir": "/home/houzm/houzm/03_model/lstr/0923/results",
+        "cache_dir": "/home/houzm/houzm/03_model/lstr-latent/0925/cache",
+        "result_dir": "/home/houzm/houzm/03_model/lstr-latent/0925/results",
         "data_dir": "/home/houzm/datasets/tusimple",
 
         "res_layers": [1, 2, 2, 2],

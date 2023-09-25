@@ -43,10 +43,14 @@ class Transformer(nn.Module):
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
 
-    def forward(self, src, mask, query_embed, pos_embed):  # mask = pmask , pos_embed = src 的 pos
+    def forward(self, src, latents_embed, mask, query_embed, pos_embed):  # mask = pmask , pos_embed = src 的 pos
         # flatten NxCxHxW to HWxNxC
         bs, c, h, w = src.shape  # (bs,32,12,20)
         src = src.flatten(2).permute(2, 0, 1)  # (1,32,12,20) -> (1,32,240) -> (240,bs,32)
+
+        latents_embed = latents_embed.permute(2, 0, 1)  # (bs,1,240) -> (240,bs,1)
+
+        src = src + latents_embed
 
         pos_embed = pos_embed.flatten(2).permute(2, 0, 1)  # (1,32,12,20) -> (1,32,240) -> (240,1,32)
 

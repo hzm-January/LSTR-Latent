@@ -14,6 +14,8 @@ from .misc import *
 
 from sample.vis import save_debug_images_boxes
 
+from .latent_encoder import Latent_Embedding
+
 BN_MOMENTUM = 0.1
 
 class FrozenBatchNorm2d(torch.nn.Module):
@@ -129,6 +131,7 @@ class kp(nn.Module):
                  ):
         super(kp, self).__init__()
         self.flag = flag
+        self.latent_emb = Latent_Embedding(self.flag)
         # above all waste not used
         self.norm_layer = norm_layer
 
@@ -178,9 +181,10 @@ class kp(nn.Module):
             layers.append(block(self.inplanes, planes))
         return nn.Sequential(*layers)
 
-    def _train(self, *xs, **kwargs):
+    def _train(self, ids, xs, **kwargs):
         images = xs[0]  # B 3 360 640
         masks  = xs[1]  # B 1 360 640
+        ids    = ids[0]
 
         p = self.conv1(images)  # B 16 180 320  images (16,3,360,640)->(16,16,180,320)
         p = self.bn1(p)  # B 16 180 320 (16,16,180,320) -> (16,16,180,320)
@@ -192,7 +196,8 @@ class kp(nn.Module):
         p = self.layer4(p)  # B 128 12 20 # p.shape[-2:](12,20)
         pmasks = F.interpolate(masks[:, 0, :, :][None], size=p.shape[-2:]).to(torch.bool)[0]  # mask(1,3,360,640) mask[:, 0, :, :](1,360,640)  mask[:, 0, :, :][None](1,1,360,640)  (1,1,12,20)[0]=(bs,12,20)
         pos    = self.position_embedding(p, pmasks)  # pmasks(bs,12,20) p(bs,128,12,20)  pos(bs,32,12,20)
-        hs, _, weights  = self.transformer(self.input_proj(p), pmasks, self.query_embed.weight, pos)  # hs.transpose(1, 2), memory.permute(1, 2, 0).view(bs, c, h, w), weights(7,32) pos(1,32,12,20)
+        latents_embed = self.latent_emb(ids) # (bs,1,240)
+        hs, _, weights  = self.transformer(self.input_proj(p), latents_embed, pmasks, self.query_embed.weight, pos)  # hs.transpose(1, 2), memory.permute(1, 2, 0).view(bs, c, h, w), weights(7,32) pos(1,32,12,20)
         output_class    = self.class_embed(hs)  # hs (2,bs,7,32) output_class  (2,bs,7,2) # models/py_utils/transformer.py forward(self, src, mask, query_embed, pos_embed)
         output_specific = self.specific_embed(hs)  # hs (2,bs,7,32) output_specific (2,bs,7,4)
         output_shared   = self.shared_embed(hs)  # output_shared (2,bs,7,4)
@@ -204,13 +209,13 @@ class kp(nn.Module):
             out['aux_outputs'] = self._set_aux_loss(output_class, output_specific)
         return out, weights  # weights(bs,240,240)
 
-    def _test(self, *xs, **kwargs):
-        return self._train(*xs, **kwargs)
+    def _test(self, ids, xs, **kwargs):
+        return self._train(ids, xs, **kwargs)
 
-    def forward(self, *xs, **kwargs):
+    def forward(self, ids, xs, **kwargs):
         if self.flag:
-            return self._train(*xs, **kwargs)
-        return self._test(*xs, **kwargs)
+            return self._train(ids, xs, **kwargs)
+        return self._test(ids, xs, **kwargs)
 
     @torch.jit.unused
     def _set_aux_loss(self, outputs_class, outputs_coord):
